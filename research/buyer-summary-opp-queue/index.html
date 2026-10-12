@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buyer Summary in Opp Queue</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a prototype toolbar above a faithful replica of the PPL Portal Opportunity Queue
+   expanded row. Left = Contact Details (slimmed), right = Opportunity Actions | Interactions | Buyer Summary.
+   Single light theme on purpose: this is a replica of an existing light-only product UI. */
+:root{
+  --navy:#0b1f3f; --navy-2:#132a52; --navy-text:#c9d4e8;
+  --accent:#2563eb; --accent-soft:#e8efff;
+  --bg:#f3f5f9; --panel:#ffffff; --line:#e3e8f0; --line-2:#eef1f6;
+  --fg:#111827; --fg-2:#4b5563; --fg-3:#8a94a6;
+  --sent:#1d4ed8; --sent-bg:#dbe7ff;          /* blue  = previously sent */
+  --ok:#15803d; --ok-bg:#dcf5e4;               /* green = available / eligible */
+  --no:#b91c1c; --no-bg:#fde2e2;               /* red   = inside requal window */
+  --warn:#b45309; --warn-bg:#fff1d6;
+  --gray-bg:#eef0f4;
+  --note:#7c3aed; --note-bg:#f1e9ff;
+  --font:"Lato",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:13px;line-height:1.45;padding-block:0;padding-inline:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- prototype toolbar ---------- */
+.proto{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:#1a1033;color:#f3eefc;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;border-bottom:1px solid #2d1e4f}
+.proto .ttl{font-weight:900;letter-spacing:.2px}
+.proto .ttl small{display:block;font-weight:400;color:#bfb3dc;font-size:11px}
+.seg{display:inline-flex;background:#2b1b4d;border-radius:8px;padding:3px;gap:2px}
+.seg button{padding:5px 12px;border-radius:6px;color:#d9cff2;font-weight:700;font-size:12px}
+.seg button[aria-pressed="true"]{background:#f3eefc;color:#1a1033}
+.proto label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#d9cff2}
+.proto input[type="date"]{font:inherit;font-size:12px;background:#2b1b4d;color:#fff;border:1px solid #4a3a6e;border-radius:6px;padding:4px 6px}
+.proto .sp{flex:1}
+.chk{appearance:none;width:30px;height:18px;border-radius:9px;background:#4a3a6e;position:relative;transition:background .15s}
+.chk::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.chk:checked{background:#a78bfa}
+.chk:checked::after{left:14px}
+
+/* ---------- portal replica ---------- */
+.scroller{overflow-x:auto;padding:16px}
+.portal{min-width:1180px;display:grid;grid-template-columns:232px 1fr;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.side{background:var(--navy);color:var(--navy-text);padding:18px 12px;min-height:100%}
+.side .brand{color:#fff;font-weight:700;font-size:14px;padding:0 10px 22px}
+.side .sec{font-size:11px;color:#8ea0c4;padding:0 10px 8px}
+.side a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:var(--navy-text);text-decoration:none;font-size:13px}
+.side a.on{background:var(--accent);color:#fff}
+.side a.sub{padding-left:30px;font-size:12.5px}
+.side a .ic{width:16px;height:16px;flex:none;opacity:.9}
+.side a .chev{margin-left:auto;opacity:.6}
+.main{min-width:0}
+.topbar{display:flex;align-items:center;gap:14px;padding:12px 22px;border-bottom:1px solid var(--line);background:var(--panel);color:var(--fg-2);font-size:12.5px}
+.topbar .search{margin-left:auto;width:320px;border:1px solid var(--line);border-radius:7px;padding:7px 10px;color:var(--fg-3);background:#fff}
+.topbar .btn{border:1px solid var(--line);border-radius:7px;padding:6px 10px;background:#fff;font-weight:700;color:var(--fg)}
+.topbar .av{width:28px;height:28px;border-radius:50%;background:#e5e7eb;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--fg-2)}
+.pagehead{padding:20px 22px 0}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead p{margin:2px 0 0;color:var(--fg-2)}
+.qcard{margin:14px 22px 22px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line-2)}
+.pill{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--fg-2);background:#fff}
+.pill b{color:var(--fg);font-weight:700}
+.pill.on{background:var(--gray-bg)}
+.live{margin-left:auto;border:1px solid #bfe3cc;color:var(--ok);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;background:#f2fbf5}
+.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px}
+table.q{width:100%;border-collapse:collapse}
+table.q th{font-weight:400;color:var(--fg-2);text-align:left;padding:10px 10px;font-size:12px;border-bottom:1px solid var(--line-2)}
+table.q td{padding:9px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+table.q tr.sel td{background:#f6f8fc}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.dot.g{background:#22c55e}
+.tag{display:inline-block;width:12px;height:12px;border:2px solid #22c55e;border-radius:2px;transform:rotate(45deg)}
+.tag.r{border-color:#ef4444;background:#ef4444;transform:none;clip-path:polygon(0 0,100% 50%,0 100%)}
+.muted{color:var(--fg-3)}
+.ico{display:inline-block;width:14px;height:14px;vertical-align:-2px}
+.ico.b{color:var(--accent)}
+
+/* expanded row */
+.expand{display:grid;grid-template-columns:minmax(380px,0.78fr) minmax(560px,1.22fr);gap:14px;padding:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.panel>.ph{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line-2)}
+.panel>.ph h3{font-size:14px;font-weight:700}
+.pb{padding:14px 16px}
+.kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-2);font-weight:700;margin:0 0 8px}
+.kv{display:grid;grid-template-columns:92px 1fr;row-gap:5px;column-gap:8px;font-size:13px}
+.kv dt{font-weight:700;color:var(--fg)}
+.kv dd{margin:0;color:var(--fg);display:flex;align-items:center;gap:6px;min-width:0}
+.kv dd .mag{color:var(--fg-3);font-size:11px}
+hr.sep{border:0;border-top:1px solid var(--line-2);margin:14px 0}
+.redund{background:var(--sent-bg);border-radius:4px;padding:0 3px}
+.src-inline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;color:var(--fg-2)}
+.src-inline b{color:var(--fg)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;line-height:1.6;white-space:nowrap}
+.chip.sent{background:var(--sent-bg);color:var(--sent)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.no{background:var(--no-bg);color:var(--no)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.gray{background:var(--gray-bg);color:var(--fg-2)}
+.chip.ai{background:var(--note-bg);color:var(--note)}
+.chip.out{background:#fff;border:1px dashed var(--line);color:var(--fg-3);font-weight:400}
+
+/* linked buyer card (replaces Potential Duplicates) */
+.linked{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center}
+.linked .avatar{width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+.linked .nm{font-weight:700}
+.linked .meta{color:var(--fg-2);font-size:12px}
+.linked .go{color:var(--accent);font-weight:700;font-size:12px;white-space:nowrap}
+.dups .row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px}
+.dups .row:hover{background:#f6f8fc}
+.dups .n{color:#d97706;font-weight:700}
+.dups .r{margin-left:auto;color:var(--fg-2)}
+.dups .r b{color:var(--ok)}
+.dups .mf{font-size:11px;color:var(--fg-3);padding:0 8px 6px 28px}
+.dups .mf span{background:var(--gray-bg);border-radius:4px;padding:1px 6px}
+
+/* right panel header: segmented toggle */
+.segp{display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;background:#f7f8fb}
+.segp button{padding:5px 11px;border-radius:6px;font-weight:700;color:var(--fg-2);font-size:12.5px}
+.segp button[aria-pressed="true"]{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.segp button .cnt{margin-left:5px;background:var(--gray-bg);border-radius:999px;padding:0 6px;font-size:11px}
+.segp button[aria-pressed="true"] .cnt{background:var(--accent-soft);color:var(--accent)}
+.switch{display:inline-flex;align-items:center;gap:8px;font-weight:700}
+.switch .sw{width:30px;height:16px;border-radius:8px;background:#d1d5db;position:relative}
+.switch .sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.switch .off{color:var(--fg-2);font-weight:400}
+.ph .acts{margin-left:auto;display:flex;gap:12px;color:var(--accent)}
+
+/* opportunity actions / interactions */
+.act{display:grid;grid-template-columns:20px 1fr auto;gap:8px;padding:6px 0}
+.act .t{color:var(--fg-2)}
+.act .body{grid-column:2/4;color:var(--fg-2)}
+.log{max-height:430px;overflow:auto;border:1px solid var(--line-2);border-radius:8px}
+.log .l{display:grid;grid-template-columns:96px 110px 1fr;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line-2);font-size:12.5px}
+.log .l:last-child{border-bottom:0}
+.log .l.nml{color:var(--fg-3)}
+.log .l.key{background:#fbfaff}
+.log .l .who{color:var(--fg-2)}
+
+/* ---------- buyer summary ---------- */
+.bs-head{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:14px 16px;background:linear-gradient(180deg,#f8faff,#fff);border-bottom:1px solid var(--line-2)}
+.bs-head .avatar{width:44px;height:44px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:900;font-size:14px}
+.bs-head .nm{font-size:15px;font-weight:900;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bs-head .meta{color:var(--fg-2);font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:2px}
+.score{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:2px 9px 2px 3px;font-size:12px;font-weight:700;background:#fff}
+.score i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;background:#d97706}
+.bs-head .open{color:var(--accent);font-weight:700;font-size:12.5px;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat .v{font-size:18px;font-weight:900;line-height:1.1}
+.stat .v.ok{color:var(--ok)} .stat .v.no{color:var(--no)}
+.stat .k{font-size:11px;color:var(--fg-2);margin-top:2px}
+.sec{padding:14px 16px 4px}
+.sec-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sec-h h4{font-size:13px;font-weight:900}
+.sec-h .r{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--fg-2);font-size:12px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--fg-2)}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.legend .ls::before{background:var(--sent)} .legend .lo::before{background:var(--ok)} .legend .ln::before{background:var(--no)} .legend .lg::before{background:#c3c9d4}
+/* timeline */
+.tl{position:relative;margin:0;padding:0;list-style:none}
+.tl::before{content:"";position:absolute;left:62px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.tl li{display:grid;grid-template-columns:52px 24px 1fr;gap:0 6px;padding:7px 0;align-items:start}
+.tl .d{font-weight:700;text-align:right;line-height:1.25}
+.tl .d small{display:block;font-weight:400;color:var(--fg-3);font-size:11px}
+.tl .node{width:12px;height:12px;border-radius:50%;border:2px solid var(--accent);background:#fff;margin:3px auto 0;position:relative;z-index:1}
+.tl .node.no{border-color:var(--no);background:var(--no)}
+.tl .node.warn{border-color:var(--warn);background:var(--warn)}
+.tl .node.out{border-color:#c3c9d4;background:#fff}
+.tl .node.now{border-color:var(--accent);background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.tl .card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+.tl .card.out{opacity:.72;border-style:dashed}
+.tl .card.now{border-color:var(--accent);background:#f8faff}
+.tl .c1{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.tl .c1 b{font-weight:900}
+.tl .c1 .who{color:var(--fg-2);font-size:12px}
+.tl .c1 .win{margin-left:auto}
+.tl .apps{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tl .note{color:var(--fg-2);font-size:12px;margin-top:5px}
+.tl .dq{color:var(--no);font-weight:700}
+/* eligibility grid */
+.elig{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.pr{display:grid;grid-template-columns:10px 1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:7px 10px;border-left-width:4px}
+.pr.ok{border-left-color:var(--ok);background:#fbfefc}
+.pr.no{border-left-color:var(--no);background:#fffafa}
+.pr.el{border-left-color:var(--ok);background:#fbfefc}
+.pr .sw{width:10px;height:10px;border-radius:50%}
+.pr.ok .sw,.pr.el .sw{background:var(--ok)} .pr.no .sw{background:var(--no)}
+.pr .n{font-weight:900}
+.pr .why{grid-column:2/4;font-size:11.5px;color:var(--fg-2);line-height:1.35}
+.pr .why b{color:var(--fg)}
+.pr .st{font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+.pr.ok .st,.pr.el .st{color:var(--ok)} .pr.no .st{color:var(--no)}
+.pr .st small{display:block;font-weight:700;letter-spacing:0;text-transform:none;color:var(--fg-2)}
+.rule{margin-top:10px;display:flex;gap:8px;align-items:flex-start;font-size:11.5px;color:var(--fg-2);background:var(--gray-bg);border-radius:8px;padding:8px 10px}
+.rule b{color:var(--fg)}
+/* AI summary */
+.ai{border:1px solid #e6dcff;border-radius:8px;background:#fcfaff}
+.ai .aih{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid #eee6ff;font-size:12px;color:var(--fg-2)}
+.ai .aih .r{margin-left:auto}
+.ai .aib{padding:10px 12px;display:grid;gap:10px}
+.sent-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px}
+.sent-row b{font-weight:900}
+.ints{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.ints li{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:12.5px}
+.ints li .d{font-weight:700;color:var(--fg-2)}
+.ints li .d small{display:block;font-weight:400;font-size:11px;color:var(--fg-3)}
+.ints li .flag{color:var(--warn);font-weight:700}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.box{border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+.box h5{margin:0 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)}
+.box ul{margin:0;padding-left:16px;font-size:12.5px;display:grid;gap:3px}
+.asks{display:grid;gap:6px}
+.ask{display:grid;grid-template-columns:18px 1fr;gap:8px;align-items:start;font-size:12.5px}
+.ask i{font-style:normal;width:18px;height:18px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:10px;font-weight:900}
+.ask .src{color:var(--fg-3);font-size:11px}
+.fade{color:var(--fg-3);font-size:11px;padding:4px 16px 14px}
+
+/* ---------- design notes ---------- */
+[data-note]{position:relative}
+.notes-on [data-note]{outline:2px dashed var(--note);outline-offset:3px;border-radius:6px}
+.notes-on [data-note]::after{content:attr(data-note);position:absolute;top:-10px;right:-8px;z-index:5;width:20px;height:20px;border-radius:50%;background:var(--note);color:#fff;font-size:11px;font-weight:900;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.notes{margin:0 16px 24px;background:#fff;border:1px solid #e6dcff;border-radius:10px;padding:16px 18px;max-width:1180px}
+.notes h2{font-size:15px;font-weight:900;color:var(--note);margin-bottom:10px}
+.notes ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 18px}
+.notes li{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:12.5px;line-height:1.45}
+.notes li i{font-style:normal;width:20px;height:20px;border-radius:50%;background:var(--note);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:900;margin-top:1px}
+.notes li b{font-weight:900}
+.notes li .who{color:var(--fg-3);font-size:11px}
+.notes .fn{margin-top:12px;color:var(--fg-2);font-size:12px;border-top:1px solid var(--line-2);padding-top:10px}
+@media (max-width:700px){.proto .ttl small{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="proto" role="toolbar" aria-label="Prototype controls">
+  <div class="ttl">Buyer Summary in the Opp Queue<small>Option 1 · inline, short-term · for Thursday review with Chase &amp; Ricardo</small></div>
+  <div class="seg" role="group" aria-label="Version">
+    <button id="vProposed" aria-pressed="true">Proposed</button>
+    <button id="vCurrent" aria-pressed="false">Current (today)</button>
+  </div>
+  <label>Simulate today <input type="date" id="today" value="2026-10-02"></label>
+  <span class="sp"></span>
+  <label><input type="checkbox" class="chk" id="notesToggle"> Design notes</label>
+</div>
+
+<div class="scroller">
+<div class="portal" id="portal">
+  <nav class="side" aria-label="Portal navigation">
+    <div class="brand">PPL Portal</div>
+    <div class="sec">Overview</div>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>Dashboard</a>
+    <a href="#" class="on"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v7M6 10.5c.5.6 3.5.6 3.5-.8 0-1.6-3.5-.9-3.5-2.6 0-1.3 3-1.3 3.5-.7"/></svg>Opportunity Queue</a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 7h12M5 1.5v3M11 1.5v3"/></svg>Scheduled Opportunities</a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="2.5"/><path d="M1.5 13c.5-2.5 2.3-4 4.5-4s4 1.5 4.5 4M11 3.5a2.2 2.2 0 0 1 0 4.2M12.5 9.5c1.3.4 2 1.6 2.3 3.5"/></svg>Buyer Accounts<span class="chev">›</span></a>
+    <a href="#" class="sub">Directory</a>
+    <a href="#" class="sub">Merge Review</a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="2.3"/><circle cx="11" cy="5" r="2.3"/><path d="M1.5 13c.4-2.2 1.8-3.5 3.5-3.5S8 10.8 8.5 13M8 13c.4-2.2 1.6-3.5 3-3.5s2.8 1.3 3.5 3.5"/></svg>People &amp; Team Mgmt<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13.5h12M3.5 11V7M7 11V4M10.5 11V8.5M14 11V2.5"/></svg>Performance<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v7M6 10.5c.5.6 3.5.6 3.5-.8 0-1.6-3.5-.9-3.5-2.6 0-1.3 3-1.3 3.5-.7"/></svg>Compensation<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2"/></svg>Revenue<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c2 2 2 11 0 13M8 1.5c-2 2-2 11 0 13"/></svg>Territory Mgmt<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h10v11H3zM5.5 6h5M5.5 9h5"/></svg>Questionnaire<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12L9.5 9v4.5l-3 1V9z"/></svg>Filters<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5h4l1.5 1.5h7.5v7h-13z"/></svg>Documents</a>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <span>▢</span><span>Opportunity Queue</span>
+      <div class="search">Search…</div>
+      <span class="btn">💡 Submit an idea</span>
+      <span class="av">AP</span>
+    </div>
+    <div class="pagehead">
+      <h1>Opportunity Queue</h1>
+      <p>View, filter, and prioritize sales opportunities in your queue</p>
+    </div>
+
+    <div class="qcard">
+      <div class="filters">
+        <span class="pill on">View: <b>Advocate</b> ▾</span>
+        <span class="pill">☆ Hotlist</span>
+        <span class="pill on">Territory: <b>Advocates</b> ▾</span>
+        <span class="pill on">Created: <b>Last 30 days</b> ▾</span>
+        <span class="live">Live</span>
+      </div>
+      <div class="filters" style="padding-top:8px">
+        <span class="pill">Stage: All ▾</span><span class="pill">Status: All ▾</span><span class="pill">Queue: All ▾</span><span class="pill">Request Type: All ▾</span><span class="pill">Brand: All ▾</span><span class="pill">Market: All ▾</span><span class="pill">Timezone: All ▾</span><span class="pill">Source: All ▾</span><span class="pill">Channel: All ▾</span>
+      </div>
+      <table class="q">
+        <thead><tr><th>$</th><th></th><th></th><th></th><th>Contact</th><th></th><th class="tnum">☎</th><th class="tnum">⏱</th><th></th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td class="muted">▮▮▮▮</td><td><span class="tag"></span></td><td class="muted">?</td><td><span class="dot"></span></td><td>Hotwork Usa <span class="muted">|</span> Monica McDermott</td><td class="muted">📄 Auto <b class="tnum" style="color:var(--fg)">02:08:20 PM</b> A new call was scheduled on 10/13/2…</td><td class="tnum">0</td><td class="tnum">02:08:19 PM</td><td>E</td><td class="ico b">◎ 📅 ⋯</td></tr>
+          <tr class="sel"><td class="muted">▮▮▮▮</td><td><span class="tag r"></span></td><td class="muted">?</td><td><span class="dot g"></span></td><td><b>Meridian Logistics</b> <span class="muted">|</span> <b>Lisa Ellis</b></td><td class="muted">📞 Alejandro M. <b class="tnum" style="color:var(--fg)">01:48:10 PM</b> (512):4406 recall · contract mgmt, Q2 budget approved</td><td class="tnum">2</td><td class="tnum">01:48:09 PM</td><td>C</td><td class="ico b">◎ 📅 ⋯</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ================= EXPANDED ROW ================= -->
+      <div class="expand">
+        <!-- LEFT: Contact details -->
+        <section class="panel" aria-label="Contact details">
+          <div class="ph"><h3>Contact Details</h3></div>
+          <div class="pb">
+            <p class="kicker">Opportunity contact</p>
+            <dl class="kv">
+              <dt>Company:</dt><dd>Meridian Logistics <span class="mag">🔍</span></dd>
+              <dt>Name:</dt><dd>Lisa Ellis <span class="mag">🔍 ↗</span></dd>
+              <dt>Title:</dt><dd>Director of Procurement</dd>
+              <dt>Email:</dt><dd>l.ellis@meridianlogistics.com <span class="mag">🔍</span></dd>
+              <dt>Phone:</dt><dd>📞 +1 (512) 555-4406 <span class="mag">⧉ 🔍</span></dd>
+              <dt>Address:</dt><dd>Austin, TX, US</dd>
+              <dt>Timezone:</dt><dd>CST — Central</dd>
+            </dl>
+
+            <!-- PROPOSED: conversion contact collapsed to one line -->
+            <div class="v-proposed" data-note="1">
+              <hr class="sep">
+              <p class="kicker">Conversion source</p>
+              <div class="src-inline">
+                <span><b>Software Advice</b></span><span>·</span><span>Source <b>cdr-outbound</b></span><span>·</span><span>Medium <b>call</b></span><span>·</span><span>Market <b>Contract Management</b></span>
+                <button class="go" style="color:var(--accent);font-weight:700;font-size:12px">Show conversion contact ▾</button>
+              </div>
+            </div>
+
+            <!-- CURRENT: full conversion contact block -->
+            <div class="v-current" hidden>
+              <hr class="sep">
+              <p class="kicker"><span class="redund">Conversion contact</span></p>
+              <dl class="kv">
+                <dt><span class="redund">Name:</span></dt><dd><span class="redund">Lisa Ellis</span> <span class="mag">🔍</span></dd>
+                <dt><span class="redund">Company:</span></dt><dd><span class="redund">Meridian Logistics</span> <span class="mag">🔍</span></dd>
+                <dt><span class="redund">Email:</span></dt><dd><span class="redund">l.ellis@meridianlogistics.com</span> <span class="mag">🔍</span></dd>
+                <dt><span class="redund">Phone:</span></dt><dd><span class="redund">📞 +1 (512) 555-4406</span> <span class="mag">⧉ 🔍</span></dd>
+                <dt>Brand:</dt><dd>Software Advice</dd>
+                <dt>Content:</dt><dd>-</dd>
+                <dt>Source:</dt><dd>cdr-outbound</dd>
+                <dt>Medium:</dt><dd>call</dd>
+              </dl>
+            </div>
+
+            <hr class="sep">
+            <p class="kicker">PPL filters</p>
+            <dl class="kv">
+              <dt>Industry:</dt><dd>Transportation &amp; Logistics</dd>
+              <dt>Users:</dt><dd>11–50 users</dd>
+              <dt>Contracts/yr:</dt><dd>300+</dd>
+            </dl>
+
+            <!-- PROPOSED: linked buyer card replaces Potential Duplicates -->
+            <div class="v-proposed" data-note="2">
+              <hr class="sep">
+              <p class="kicker">Linked buyer account</p>
+              <div class="linked">
+                <div class="avatar">LE</div>
+                <div>
+                  <div class="nm">Lisa Ellis <span class="chip gray">100% match</span></div>
+                  <div class="meta"><span id="lb-count">4</span> prior qualifications · last <span id="lb-last">Jun 2, 2026</span> · <span id="lb-blocked">4 products inside a requal window</span></div>
+                </div>
+                <button class="go" id="jumpSummary">View buyer summary →</button>
+              </div>
+            </div>
+
+            <!-- CURRENT: potential duplicates with matched fields -->
+            <div class="v-current dups" hidden>
+              <hr class="sep">
+              <h3 style="font-size:13px;font-weight:700;margin-bottom:6px">Potential Duplicates (4)</h3>
+              <div class="row"><span class="n">15</span><span class="muted">·</span><span>Lisa Ellis</span><span class="r">· Jun 2, 2026 · <b>$ Jun 2, 2026</b></span></div>
+              <div class="mf">Contract Management · Matched fields <span>email</span> <span>phone</span> <span>name</span></div>
+              <div class="row"><span class="n">15</span><span class="muted">·</span><span>Lisa Ellis</span><span class="r">· Dec 15, 2025 · <b>$ Dec 15, 2025</b></span></div>
+              <div class="mf">Matched fields <span>email</span> <span>name</span> <span>company</span></div>
+              <div class="row"><span class="n">15</span><span class="muted">·</span><span>Lisa Ellis</span><span class="r">· Sep 9, 2025 · <b>$ Sep 9, 2025</b></span></div>
+              <div class="mf">Matched fields <span>email</span> <span>phone</span></div>
+              <div class="row"><span class="n">15</span><span class="muted">·</span><span>L. Ellis</span><span class="r">· Mar 25, 2025 · nurture</span></div>
+              <div class="mf">Matched fields <span>phone</span> <span>company</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: actions / interactions / buyer summary -->
+        <section class="panel" aria-label="Opportunity panel" id="rightPanel">
+          <div class="ph">
+            <!-- PROPOSED: segmented control -->
+            <div class="segp v-proposed" role="tablist" data-note="3">
+              <button role="tab" id="tabActions" aria-pressed="false">Opportunity Actions</button>
+              <button role="tab" id="tabInteractions" aria-pressed="false">Interactions <span class="cnt">41</span></button>
+              <button role="tab" id="tabSummary" aria-pressed="true">Buyer Summary</button>
+            </div>
+            <!-- CURRENT: switch -->
+            <div class="switch v-current" hidden><span>Opportunity Actions</span><span class="sw"></span><span class="off">Interactions</span></div>
+            <div class="acts">📞 💬 📄 <b>+</b></div>
+          </div>
+
+          <!-- Opportunity Actions -->
+          <div class="pb" id="viewActions" hidden>
+            <div class="act"><span>📞</span><span><b>Alejandro M.</b> <span class="muted">(CDR)</span></span><span class="t tnum">01:48:10 PM</span>
+              <span class="body">Recall · (512) 555-4406 · Lisa confirmed Q2 budget is approved and the contract-management search is back on. Wants a 15-minute call Thursday 10:00am CT to review options.</span></div>
+            <div class="act"><span>📄</span><span>Auto</span><span class="t tnum">01:48:09 PM</span>
+              <span class="body">A new call was scheduled on 10/08/2026 at 10:00am Central Time with Lisa Ellis.</span></div>
+          </div>
+
+          <!-- Interactions (raw log) -->
+          <div class="pb" id="viewInteractions" hidden>
+            <p class="muted" style="margin:0 0 8px">41 logged interactions · newest first · <span class="chip ai">Summarized in Buyer Summary</span></p>
+            <div class="log" id="log"></div>
+          </div>
+
+          <!-- Buyer Summary -->
+          <div id="viewSummary">
+            <div class="bs-head">
+              <div class="avatar">LE</div>
+              <div>
+                <div class="nm">Lisa Ellis <span class="score" title="Buyer score from the buyer profile"><i>58</i>Warm · Re-engaged</span></div>
+                <div class="meta"><span>Director of Procurement · Meridian Logistics</span><span>·</span><span><b id="hd-count">4</b> prior qualifications since Mar 2025</span><span>·</span><span>Last qualified <b id="hd-last">Jun 2, 2026</b> (<span id="hd-ago">4 mo ago</span>)</span></div>
+              </div>
+              <a class="open" href="#">Open buyer profile ↗</a>
+            </div>
+
+            <div class="stats" data-note="4">
+              <div class="stat"><div class="v tnum" id="st-quals">4</div><div class="k">Qualifications · 3 in this market</div></div>
+              <div class="stat"><div class="v tnum ok" id="st-ok">6</div><div class="k">Products you can send today</div></div>
+              <div class="stat"><div class="v tnum no" id="st-no">4</div><div class="k">Blocked by requal window</div></div>
+              <div class="stat"><div class="v tnum" id="st-next">Dec 2</div><div class="k">Next product unblocks</div></div>
+            </div>
+
+            <!-- Eligibility -->
+            <div class="sec" data-note="5">
+              <div class="sec-h"><h4>Contract Management · what you can recommend today</h4>
+                <div class="r legend"><span class="lo">Available / eligible</span><span class="ln">Inside requal window</span></div></div>
+              <div class="elig" id="elig"></div>
+              <div class="rule"><span>ⓘ</span><div><b>Requalification rules applied automatically.</b> Same vendor to same buyer: <b>6-month</b> wait after a send. A <b>3rd send</b> of the same vendor: <b>12-month</b> wait from the 2nd send. Dates come from the linked qualifications below; nothing to calculate on the call.</div></div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="sec" data-note="6">
+              <div class="sec-h"><h4>Qualification history</h4>
+                <div class="r"><span class="legend"><span class="ls">Sent at that qualification</span></span>
+                  <label style="display:inline-flex;gap:5px;align-items:center"><input type="checkbox" id="otherMarkets" checked> Show other markets</label></div></div>
+              <ol class="tl" id="timeline"></ol>
+            </div>
+
+            <!-- AI conversation summary -->
+            <div class="sec" data-note="7">
+              <div class="sec-h"><h4>Conversation summary</h4><span class="chip ai">AI · Phase 2</span>
+                <div class="r">41 call-log entries → 5 that mattered</div></div>
+              <div class="ai">
+                <div class="aih">✦ Generated from call log + Gong transcripts · updated after each logged interaction <span class="r muted">Sources: 3 Gong calls, 41 log entries</span></div>
+                <div class="aib">
+                  <div class="sent-row"><b>Sentiment:</b> <span class="chip warn">Engaged but contact-fatigued</span> <span class="muted">Said on Jun 2 she has been "contacted several times" — lead with what's new, not a re-pitch.</span></div>
+                  <ul class="ints">
+                    <li><span class="d">Jun 2, 2026<small>Chris M. · Advocate</small></span><span><b>Connected, re-qualified.</b> Evaluating CLM for 300+ supplier contracts/yr. Coupa integration is a hard requirement. Sent Summize &amp; ContractWorks. Mentioned an <b>Ironclad demo already booked</b>.</span></li>
+                    <li><span class="d">Jan 14, 2026<small>Alejandro M. · CDR</small></span><span><b>Reached while busy.</b> Search on hold until Q2 budget. Asked for a callback in April. <span class="flag">⚠ No April call was logged — missed follow-up.</span></span></li>
+                    <li><span class="d">Dec 15, 2025<small>Ryan P. · Advisor</small></span><span><b>Qualified.</b> Frustrated with manual redlining in Word; legal team of 2 is the bottleneck. Sent Contract Insight, Gatekeeper, Summize.</span></li>
+                    <li><span class="d">Sep 9, 2025<small>Ryan P. · Advisor</small></span><span><b>Qualified.</b> First inquiry; comparing 3 vendors, 90-day timeline. Sent Contract Insight, Gatekeeper, Concord. Timeline slipped.</span></li>
+                    <li><span class="d">Mar 25, 2025<small>Chris M. · Advocate</small></span><span><b>Wrong market.</b> Came in as Legal Management (matter mgmt); need was contract-focused. Clio, MyCase, PracticePanther sent — none relevant now.</span></li>
+                  </ul>
+                  <div class="two">
+                    <div class="box"><h5>Stated pain points</h5><ul><li>Redlining turnaround (Word + email)</li><li>No visibility into renewal dates</li><li>Legal team of 2 reviewing every supplier contract</li></ul></div>
+                    <div class="box"><h5>Tech stack &amp; interests</h5><ul><li>Coupa (procurement) — integration required</li><li>DocuSign in place — keep it</li><li>Ironclad demo booked (competitor in play)</li></ul></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gong-driven asks -->
+            <div class="sec" data-note="8" style="padding-bottom:12px">
+              <div class="sec-h"><h4>Ask about this</h4><span class="chip ai">Gong · Phase 2</span><div class="r">Surfaced across 3 recorded calls</div></div>
+              <div class="asks">
+                <div class="ask"><i>1</i><div>Did the Ironclad demo happen, and what did they think? <span class="src">Jun 2 call · Gong</span></div></div>
+                <div class="ask"><i>2</i><div>Is Coupa integration still the gating requirement? Agiloft and Icertis both list Coupa connectors. <span class="src">Mentioned on 3 of 3 calls</span></div></div>
+                <div class="ask"><i>3</i><div>Who signs off — Lisa said the CFO needs to approve anything over $25k. <span class="src">Dec 15 call · Gong</span></div></div>
+              </div>
+            </div>
+            <div class="fade">Buyer Summary is read-only in this version. Recommendations still happen on the qualification page; blocked products will show the same red state there.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<section class="notes" id="notes" hidden aria-label="Design notes">
+  <h2>What changed and whose ask it answers</h2>
+  <ol>
+    <li><i>1</i><div><b>Conversion Contact collapsed to one line.</b> It duplicated the Opportunity Contact in most cases and took a third of the column. Brand / Source / Medium / Market stay visible; the full block is one click away.<div class="who">Ricardo: "we don't need this conversion contact… it's just taking up space"</div></div></li>
+    <li><i>2</i><div><b>Potential Duplicates → Linked buyer account.</b> Matched fields (email / phone / name) are gone; what mattered was that it is a 100% match. The card shows count, last qualification and how many products are blocked, and jumps to the summary.<div class="who">Ricardo: "it doesn't matter what it matched, it just matters that it was 100% match"</div></div></li>
+    <li><i>3</i><div><b>Toggle becomes a 3-way segmented control.</b> Opportunity Actions · Interactions · Buyer Summary, in the existing panel header. Advocate view defaults to Buyer Summary; advisors keep Opportunity Actions as default.<div class="who">Arosha: "toggle right here… between opportunity actions and interactions"</div></div></li>
+    <li><i>4</i><div><b>Four numbers before any detail.</b> Qualifications, sendable products, blocked products, next unblock date. Answers "is this a viable recall and how lucrative" in one glance.<div class="who">Ricardo's first questions: "when was it called, is it a viable recall, how lucrative"</div></div></li>
+    <li><i>5</i><div><b>Color-coded eligibility, computed not interpreted.</b> Green = never sent or window cleared; red = inside a 6- or 12-month window, with the unblock date and the rule that caused it. Change "Simulate today" in the toolbar to watch products flip.<div class="who">Chase: "let's build in some logic there… these are eligible for requalification and these are not"</div></div></li>
+    <li><i>6</i><div><b>Qualification history as a dated timeline.</b> Chronological, market first, who ran it, apps sent in blue, and a window badge per qualification. Other-market quals are dimmed and can be hidden; they are context, not a requal constraint.<div class="who">Ricardo: "I will literally open every single one up and move them around based on the date"</div></div></li>
+    <li><i>7</i><div><b>AI conversation summary (Phase 2).</b> 41 NML-heavy entries reduced to the 5 that mattered, plus sentiment, pain points, tech stack and a flagged missed follow-up. Same slot works for the standalone buyer queue later.<div class="who">Ricardo: "instead of NML, NML, NML for 40 interactions… the 3 interactions that actually made sense"</div></div></li>
+    <li><i>8</i><div><b>Gong-driven "Ask about this" (Phase 2).</b> Recurring systems and pain points across recorded calls turned into questions the advocate might not know to ask.<div class="who">Chase: "she's mentioned these other pain points or systems… they might not know to ask about that"</div></div></li>
+  </ol>
+  <div class="fn"><b>Open items for Thursday:</b> confirm thresholds against Chase's rules doc (6 and 12 months modeled here; Ricardo also mentioned 18). Decide whether Buyer Summary is the advocate default. Decide if "Send" actions should live here or stay on the qualification page. Everything in this mock reuses existing Portal pieces: the expanded-row layout, the panel header toggle, buyer score from the profile, and the Potential Duplicates match data.</div>
+</section>
+
+<script>
+(function(){
+  // ---------- data (illustrative example buyer) ----------
+  const MARKET = 'Contract Management';
+  const quals = [
+    {date:'2026-06-02', market:'Contract Management', who:'Chris M.', role:'Advocate', kind:'Recall', sent:['Summize','ContractWorks'], note:'Re-engaged after Q2 budget. Coupa integration required; Ironclad demo already booked.'},
+    {date:'2025-12-15', market:'Contract Management', who:'Ryan P.', role:'Advisor', kind:'Qualified', sent:['Contract Insight','Gatekeeper','Summize'], note:'Manual redlining in Word; legal team of 2.'},
+    {date:'2025-09-09', market:'Contract Management', who:'Ryan P.', role:'Advisor', kind:'Qualified', sent:['Contract Insight','Gatekeeper','Concord'], note:'First inquiry; 3-vendor shortlist, 90-day timeline.'},
+    {date:'2025-03-25', market:'Legal Management', who:'Chris M.', role:'Advocate', kind:'Qualified', sent:['Clio','MyCase','PracticePanther'], note:'Wrong market: matter management, need was contract-focused.'}
+  ];
+  const products = ['Agiloft','Ironclad','Icertis','Concord','Juro','LinkSquares','Contract Insight','Gatekeeper','Summize','ContractWorks'];
+
+  // ---------- requalification logic (pure) ----------
+  const MONTHS_SINGLE = 6, MONTHS_REPEAT = 12;
+  const d = s => new Date(s + 'T12:00:00');
+  const addMonths = (dt, n) => { const x = new Date(dt); x.setMonth(x.getMonth() + n); return x; };
+  const fmt = dt => dt.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  const fmtS = dt => dt.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  const monthsBetween = (a, b) => Math.max(0, Math.round((b - a) / (1000*60*60*24*30.44)));
+
+  function sendsFor(product){
+    return quals.filter(q => q.market === MARKET && q.sent.includes(product)).map(q => d(q.date)).sort((a,b)=>a-b);
+  }
+  function eligibility(product, today){
+    const s = sendsFor(product);
+    if(!s.length) return {state:'ok', label:'Available', why:'Never sent to this buyer.'};
+    const last = s[s.length-1];
+    const wait = s.length >= 2 ? MONTHS_REPEAT : MONTHS_SINGLE;
+    const until = addMonths(last, wait);
+    const sentTxt = s.map(fmtS).join(', ');
+    if(today < until){
+      const rule = s.length >= 2 ? `${s.length} sends → 12-month wait from 2nd send` : `sent once → 6-month wait`;
+      return {state:'no', label:'Blocked', sub:`until ${fmt(until)}`, until, why:`Sent <b>${sentTxt}</b> · ${rule}.`};
+    }
+    const next = s.length === 1 ? 'Next send is the 2nd — it will start the 12-month rule.' : 'Window cleared.';
+    return {state:'el', label:'Eligible to requalify', sub:`cleared ${fmt(until)}`, why:`Sent <b>${sentTxt}</b> · ${next}`};
+  }
+  function windowBadge(q, today){
+    if(q.market !== MARKET) return {cls:'out', text:'Other market · no requal impact'};
+    const m = monthsBetween(d(q.date), today);
+    if(m < MONTHS_SINGLE) return {cls:'no', text:`Inside 6-mo window · ${m} mo ago`};
+    if(m < MONTHS_REPEAT) return {cls:'warn', text:`Inside 12-mo window · ${m} mo ago`};
+    return {cls:'gray', text:`Outside windows · ${m} mo ago`};
+  }
+
+  // ---------- render ----------
+  const $ = id => document.getElementById(id);
+  function render(){
+    const today = d($('today').value || '2026-10-02');
+
+    // eligibility grid (available first, then eligible, then blocked by unblock date)
+    const rows = products.map(p => ({p, e: eligibility(p, today)}));
+    const order = {ok:0, el:1, no:2};
+    rows.sort((a,b) => (order[a.e.state]-order[b.e.state]) || ((a.e.until||0)-(b.e.until||0)) || a.p.localeCompare(b.p));
+    $('elig').innerHTML = rows.map(({p,e}) => `
+      <div class="pr ${e.state}">
+        <span class="sw"></span><span class="n">${p}</span>
+        <span class="st">${e.label}${e.sub ? `<small>${e.sub}</small>` : ''}</span>
+        <span class="why">${e.why}</span>
+      </div>`).join('');
+
+    const ok = rows.filter(r => r.e.state !== 'no').length, no = rows.length - ok;
+    const nextUnblock = rows.filter(r => r.e.state === 'no').map(r => r.e.until).sort((a,b)=>a-b)[0];
+    $('st-ok').textContent = ok; $('st-no').textContent = no;
+    $('st-next').textContent = nextUnblock ? fmtS(nextUnblock) : '—';
+    $('lb-blocked').textContent = no ? `${no} product${no>1?'s':''} inside a requal window` : 'no products blocked';
+
+    // header
+    const past = quals.filter(q => d(q.date) <= today).sort((a,b) => d(b.date)-d(a.date));
+    const inMarket = past.filter(q => q.market === MARKET).length;
+    $('st-quals').textContent = past.length; $('hd-count').textContent = past.length; $('lb-count').textContent = past.length;
+    document.querySelector('#st-quals + .k').textContent = `Qualifications · ${inMarket} in this market`;
+    if(past[0]){ $('hd-last').textContent = fmt(d(past[0].date)); $('lb-last').textContent = fmt(d(past[0].date)); $('hd-ago').textContent = `${monthsBetween(d(past[0].date), today)} mo ago`; }
+
+    // timeline
+    const showOther = $('otherMarkets').checked;
+    const items = [{now:true}].concat(past.filter(q => showOther || q.market === MARKET));
+    $('timeline').innerHTML = items.map(q => {
+      if(q.now) return `<li><span class="d tnum">${fmtS(today)}<small>${today.getFullYear()}</small></span><span class="node now"></span>
+        <div class="card now"><div class="c1"><b>This conversion</b><span class="who">Alejandro M. · CDR · recall</span><span class="chip ok win">${MARKET}</span></div>
+        <div class="note">Q2 budget approved; call booked Thu 10:00am CT. ${ok} products sendable.</div></div></li>`;
+      const w = windowBadge(q, today), dt = d(q.date), other = q.market !== MARKET;
+      return `<li><span class="d tnum">${fmtS(dt)}<small>${dt.getFullYear()}</small></span><span class="node ${w.cls}"></span>
+        <div class="card ${other?'out':''}"><div class="c1"><b>${q.market}</b><span class="who">${q.who} · ${q.role} · ${q.kind}</span><span class="chip ${w.cls} win">${w.text}</span></div>
+        <div class="apps">${q.sent.map(a => `<span class="chip ${other?'out':'sent'}">${a}</span>`).join('')}</div>
+        <div class="note">${q.note}</div></div></li>`;
+    }).join('');
+  }
+
+  // raw interaction log (mostly NML) to contrast with the summary
+  (function buildLog(){
+    const key = {
+      '2026-10-02':['Alejandro M.','Recall · Q2 budget approved, call booked Thu 10am CT'],
+      '2026-06-02':['Chris M.','Connected · re-qualified · Summize, ContractWorks sent'],
+      '2026-01-14':['Alejandro M.','Reached while busy · on hold until Q2 budget · callback April'],
+      '2025-12-15':['Ryan P.','Qualified · Contract Insight, Gatekeeper, Summize'],
+      '2025-09-09':['Ryan P.','Qualified · Contract Insight, Gatekeeper, Concord'],
+      '2025-03-25':['Chris M.','Qualified (Legal Mgmt) · Clio, MyCase, PracticePanther']
+    };
+    const cdrs = ['Alejandro M.','Priya S.','Devon R.','Alejandro M.','Marcus T.'];
+    const out = []; let cur = new Date('2026-10-02T12:00:00'); let i = 0;
+    while(out.length < 41){
+      const iso = cur.toISOString().slice(0,10);
+      if(key[iso]) out.push({iso, who:key[iso][0], txt:key[iso][1], k:true});
+      else if(i % 3 !== 1) out.push({iso, who:cdrs[i % cdrs.length], txt:'NML', k:false});
+      cur.setDate(cur.getDate() - (5 + (i*7)%11)); i++;
+      if(cur < new Date('2025-03-20')) break;
+    }
+    Object.keys(key).forEach(k => { if(!out.some(o => o.iso === k)) out.push({iso:k, who:key[k][0], txt:key[k][1], k:true}); });
+    out.sort((a,b) => b.iso.localeCompare(a.iso));
+    $('log').innerHTML = out.slice(0,41).map(o => `<div class="l ${o.k?'key':'nml'}"><span class="tnum">${fmt(d(o.iso))}</span><span class="who">${o.who}</span><span>${o.txt}</span></div>`).join('');
+  })();
+
+  // ---------- interactions ----------
+  const tabs = {tabActions:'viewActions', tabInteractions:'viewInteractions', tabSummary:'viewSummary'};
+  Object.keys(tabs).forEach(id => $(id).addEventListener('click', () => {
+    Object.entries(tabs).forEach(([t,v]) => { $(t).setAttribute('aria-pressed', String(t===id)); $(v).hidden = (t!==id); });
+  }));
+  $('jumpSummary').addEventListener('click', () => { $('tabSummary').click(); $('rightPanel').scrollIntoView({behavior:'smooth', block:'start'}); });
+
+  function setVersion(proposed){
+    $('vProposed').setAttribute('aria-pressed', String(proposed));
+    $('vCurrent').setAttribute('aria-pressed', String(!proposed));
+    document.querySelectorAll('.v-proposed').forEach(el => el.hidden = !proposed);
+    document.querySelectorAll('.v-current').forEach(el => el.hidden = proposed);
+    if(proposed) $('tabSummary').click(); else { $('viewSummary').hidden = true; $('viewInteractions').hidden = true; $('viewActions').hidden = false; }
+  }
+  $('vProposed').addEventListener('click', () => setVersion(true));
+  $('vCurrent').addEventListener('click', () => setVersion(false));
+
+  $('notesToggle').addEventListener('change', e => { document.body.classList.toggle('notes-on', e.target.checked); $('notes').hidden = !e.target.checked; });
+  $('today').addEventListener('change', render);
+  $('otherMarkets').addEventListener('change', render);
+
+  render();
+})();
+</script>
+</body>
+</html>
