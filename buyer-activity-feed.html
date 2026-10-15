@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buyer Activity Feed</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Same PPL Portal chrome/tokens as research/buyer-summary-opp-queue, extended with a new
+   Buyer Activity Feed concept: a standing list of returning-buyer signals, separate from
+   the Opportunity Queue, that reps triage and can push into the queue on demand. */
+:root{
+  --navy:#0b1f3f; --navy-2:#132a52; --navy-text:#c9d4e8;
+  --accent:#2563eb; --accent-soft:#e8efff;
+  --bg:#f3f5f9; --panel:#ffffff; --line:#e3e8f0; --line-2:#eef1f6;
+  --fg:#111827; --fg-2:#4b5563; --fg-3:#8a94a6;
+  --sent:#1d4ed8; --sent-bg:#dbe7ff;
+  --ok:#15803d; --ok-bg:#dcf5e4;
+  --no:#b91c1c; --no-bg:#fde2e2;
+  --warn:#b45309; --warn-bg:#fff1d6;
+  --gray-bg:#eef0f4;
+  --note:#7c3aed; --note-bg:#f1e9ff;
+  --font:"Lato",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:13px;line-height:1.45}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+.tnum{font-variant-numeric:tabular-nums}
+
+.proto{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:#1a1033;color:#f3eefc;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;border-bottom:1px solid #2d1e4f}
+.proto .ttl{font-weight:900;letter-spacing:.2px}
+.proto .ttl small{display:block;font-weight:400;color:#bfb3dc;font-size:11px}
+.proto .btn2{border:1px solid #4a3a6e;background:#2b1b4d;color:#f3eefc;border-radius:7px;padding:6px 12px;font-weight:700;font-size:12px}
+.proto .btn2:hover{background:#3a2764}
+.proto label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#d9cff2}
+.proto .sp{flex:1}
+.chk{appearance:none;width:30px;height:18px;border-radius:9px;background:#4a3a6e;position:relative;transition:background .15s}
+.chk::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.chk:checked{background:#a78bfa}
+.chk:checked::after{left:14px}
+
+.scroller{overflow-x:auto;padding:16px}
+.portal{min-width:1180px;display:grid;grid-template-columns:232px 1fr;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+.side{background:var(--navy);color:var(--navy-text);padding:18px 12px;min-height:100%}
+.side .brand{color:#fff;font-weight:700;font-size:14px;padding:0 10px 22px}
+.side .sec{font-size:11px;color:#8ea0c4;padding:0 10px 8px}
+.side a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:var(--navy-text);text-decoration:none;font-size:13px}
+.side a.on{background:var(--accent);color:#fff}
+.side a.sub{padding-left:30px;font-size:12.5px}
+.side a .ic{width:16px;height:16px;flex:none;opacity:.9}
+.side a .chev{margin-left:auto;opacity:.6}
+.side a .new{margin-left:auto;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:900;padding:1px 6px}
+.main{min-width:0}
+.topbar{display:flex;align-items:center;gap:14px;padding:12px 22px;border-bottom:1px solid var(--line);background:var(--panel);color:var(--fg-2);font-size:12.5px}
+.topbar .search{margin-left:auto;width:320px;border:1px solid var(--line);border-radius:7px;padding:7px 10px;color:var(--fg-3);background:#fff}
+.topbar .btn{border:1px solid var(--line);border-radius:7px;padding:6px 10px;background:#fff;font-weight:700;color:var(--fg)}
+.topbar .av{width:28px;height:28px;border-radius:50%;background:#e5e7eb;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--fg-2)}
+.pagehead{padding:20px 22px 0}
+.pagehead h1{font-size:19px;font-weight:700}
+.pagehead p{margin:4px 0 0;color:var(--fg-2);max-width:760px}
+
+/* summary stat strip */
+.statbar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 22px 0}
+.sb{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.sb .v{font-size:20px;font-weight:900;line-height:1.1}
+.sb .v.ok{color:var(--ok)} .sb .v.accent{color:var(--accent)}
+.sb .k{font-size:11.5px;color:var(--fg-2);margin-top:2px}
+
+/* filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 22px 0}
+.pill{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--fg-2);background:#fff}
+.pill b{color:var(--fg);font-weight:700}
+.pill.on{background:var(--gray-bg)}
+.sfilter{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:700;color:var(--fg-2);background:#fff}
+.sfilter[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.live{border:1px solid #bfe3cc;color:var(--ok);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;background:#f2fbf5;margin-left:auto}
+.live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* feed */
+.feed{display:grid;gap:12px;margin:14px 22px 22px}
+.fcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;transition:opacity .25s, transform .25s}
+.fcard.enter{animation:slidein .4s ease}
+@keyframes slidein{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.fcard.done{opacity:.6}
+.fcard.snoozed{opacity:.65}
+.fhead{display:grid;grid-template-columns:38px 1fr auto;gap:12px;align-items:center}
+.fhead .avatar{width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:900;font-size:12.5px;flex:none}
+.fhead .nm{font-weight:900;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fhead .meta{color:var(--fg-2);font-size:12px;margin-top:2px}
+.score{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:2px 9px 2px 3px;font-size:12px;font-weight:700;background:#fff}
+.score i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;background:#d97706}
+.score.hot i{background:#dc2626}
+.score.cool i{background:#6b7280}
+.frecency{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;white-space:nowrap}
+.frecency .rd{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.frecency.new .rd{animation:pulse 1.6s infinite}
+.frecency.stale .rd{background:var(--fg-3)}
+.fbody{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.fbox{border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+.fbox h5{margin:0 0 5px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)}
+.fbox p{margin:0;font-size:12.5px;color:var(--fg)}
+.fbox .sub{color:var(--fg-2);font-size:11.5px;margin-top:3px}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;line-height:1.6;white-space:nowrap}
+.chip.sent{background:var(--sent-bg);color:var(--sent)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.no{background:var(--no-bg);color:var(--no)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.gray{background:var(--gray-bg);color:var(--fg-2)}
+.chip.ai{background:var(--note-bg);color:var(--note)}
+.prodrow{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.fnote{margin-top:10px;display:flex;gap:7px;align-items:flex-start;font-size:11.5px;color:var(--fg-2);background:var(--gray-bg);border-radius:8px;padding:7px 9px}
+.factions{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.fbtn{border-radius:7px;padding:7px 13px;font-weight:700;font-size:12.5px;border:1px solid var(--line)}
+.fbtn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.fbtn.primary:hover{background:var(--navy-2)}
+.fbtn.ghost{background:#fff;color:var(--fg-2)}
+.fbtn.ghost:hover{background:var(--gray-bg)}
+.fbtn:disabled{opacity:.5;cursor:default}
+.statuspill{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--fg-2)}
+.undo{color:var(--accent);font-weight:700;font-size:12px}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;z-index:100;display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast .ok2{width:16px;height:16px;border-radius:50%;background:#22c55e;display:grid;place-items:center;font-size:10px;flex:none}
+
+/* design notes */
+[data-note]{position:relative}
+.notes-on [data-note]{outline:2px dashed var(--note);outline-offset:3px;border-radius:6px}
+.notes-on [data-note]::after{content:attr(data-note);position:absolute;top:-10px;right:-8px;z-index:5;width:20px;height:20px;border-radius:50%;background:var(--note);color:#fff;font-size:11px;font-weight:900;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.notes{margin:0 16px 24px;background:#fff;border:1px solid #e6dcff;border-radius:10px;padding:16px 18px;max-width:1180px}
+.notes h2{font-size:15px;font-weight:900;color:var(--note);margin-bottom:10px}
+.notes ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 18px}
+.notes li{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:12.5px;line-height:1.45}
+.notes li i{font-style:normal;width:20px;height:20px;border-radius:50%;background:var(--note);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:900;margin-top:1px}
+.notes li b{font-weight:900}
+.notes li .who{color:var(--fg-3);font-size:11px}
+.notes .fn{margin-top:12px;color:var(--fg-2);font-size:12px;border-top:1px solid var(--line-2);padding-top:10px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="proto" role="toolbar" aria-label="Prototype controls">
+  <div class="ttl">Buyer Activity Feed<small>New concept · separate from the Opp Queue · for review with Chase &amp; Ricardo</small></div>
+  <button class="btn2" id="simulate">+ Simulate a new visit</button>
+  <span class="sp"></span>
+  <label><input type="checkbox" class="chk" id="notesToggle"> Design notes</label>
+</div>
+
+<div class="scroller">
+<div class="portal">
+  <nav class="side" aria-label="Portal navigation">
+    <div class="brand">PPL Portal</div>
+    <div class="sec">Overview</div>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>Dashboard</a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v7M6 10.5c.5.6 3.5.6 3.5-.8 0-1.6-3.5-.9-3.5-2.6 0-1.3 3-1.3 3.5-.7"/></svg>Opportunity Queue</a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 7h12M5 1.5v3M11 1.5v3"/></svg>Scheduled Opportunities</a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="2.5"/><path d="M1.5 13c.5-2.5 2.3-4 4.5-4s4 1.5 4.5 4M11 3.5a2.2 2.2 0 0 1 0 4.2M12.5 9.5c1.3.4 2 1.6 2.3 3.5"/></svg>Buyer Accounts<span class="chev">›</span></a>
+    <a href="#" class="sub">Directory</a>
+    <a href="#" class="sub">Merge Review</a>
+    <a href="#" class="sub on">Activity Feed <span class="new">5</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="2.3"/><circle cx="11" cy="5" r="2.3"/><path d="M1.5 13c.4-2.2 1.8-3.5 3.5-3.5S8 10.8 8.5 13M8 13c.4-2.2 1.6-3.5 3-3.5s2.8 1.3 3.5 3.5"/></svg>People &amp; Team Mgmt<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13.5h12M3.5 11V7M7 11V4M10.5 11V8.5M14 11V2.5"/></svg>Performance<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5v7M6 10.5c.5.6 3.5.6 3.5-.8 0-1.6-3.5-.9-3.5-2.6 0-1.3 3-1.3 3.5-.7"/></svg>Compensation<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 2"/></svg>Revenue<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c2 2 2 11 0 13M8 1.5c-2 2-2 11 0 13"/></svg>Territory Mgmt<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h10v11H3zM5.5 6h5M5.5 9h5"/></svg>Questionnaire<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12L9.5 9v4.5l-3 1V9z"/></svg>Filters<span class="chev">›</span></a>
+    <a href="#"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5h4l1.5 1.5h7.5v7h-13z"/></svg>Documents</a>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <span>▢</span><span>Buyer Accounts / Activity Feed</span>
+      <div class="search">Search…</div>
+      <span class="btn">💡 Submit an idea</span>
+      <span class="av">AP</span>
+    </div>
+    <div class="pagehead">
+      <h1>Buyer Activity Feed</h1>
+      <p>Buyers you already have a profile for, the moment they come back to the site on their own — no new call or lead required. Each signal routes to the rep who last worked that buyer.</p>
+    </div>
+
+    <div class="statbar" data-note="1">
+      <div class="sb"><div class="v tnum accent" id="sb-active">5</div><div class="k">Active signals today</div></div>
+      <div class="sb"><div class="v tnum" id="sb-new">3</div><div class="k">Awaiting action</div></div>
+      <div class="sb"><div class="v tnum ok" id="sb-done">1</div><div class="k">Added to queue this week</div></div>
+      <div class="sb"><div class="v tnum" id="sb-snoozed">1</div><div class="k">Snoozed</div></div>
+    </div>
+
+    <div class="filters">
+      <button class="sfilter" data-filter="all" aria-pressed="true">All</button>
+      <button class="sfilter" data-filter="new" aria-pressed="false">New</button>
+      <button class="sfilter" data-filter="done" aria-pressed="false">Added to queue</button>
+      <button class="sfilter" data-filter="snoozed" aria-pressed="false">Snoozed</button>
+      <span class="pill on">Rep: <b>Mine</b> ▾</span>
+      <span class="pill">Market: All ▾</span>
+      <span class="pill">Recency: <b>Today</b> ▾</span>
+      <span class="live">Live</span>
+    </div>
+
+    <div class="feed" id="feed"></div>
+  </div>
+</div>
+</div>
+
+<section class="notes" id="notes" hidden aria-label="Design notes">
+  <h2>What this is and open questions</h2>
+  <ol>
+    <li><i>1</i><div><b>A separate feed, not a new queue row or a badge.</b> A passive site visit isn't the same kind of event as a scheduled call or an inbound lead, so it shouldn't compete for the same slot in the Opportunity Queue. Reps triage it on their own time; "Flag as opportunity action" is what promotes it into the queue.<div class="who">Keeps the queue reserved for things that already need a response today.</div></div></li>
+    <li><i>2</i><div><b>Trigger = any matched site visit, not page-level tracking.</b> That means this feed can tell you <i>that</i> a known buyer is back, but not <i>what</i> they looked at. "Known interest" below is pulled from their prior qualification history, not this visit. Upgrading to vendor/category page-view tracking would let us show real-time intent instead of inferred interest — worth scoping as a Phase 2 if the signal proves useful.</div></li>
+    <li><i>3</i><div><b>Routes to the rep who last worked them.</b> Preserves relationship continuity. Open question for Thursday: what happens when that rep is off territory, inactive, or it's been over 12 months — falls back to normal territory routing, but we need the exact threshold.</div></li>
+    <li><i>4</i><div><b>Noise control.</b> The same buyer won't resurface more than once per rolling 24 hours, even with multiple visits in that window, so one browsing session can't spawn duplicate cards.</div></li>
+    <li><i>5</i><div><b>"Flag as opportunity action" pushes a new row into the Opportunity Queue</b> — same shape as a call or lead reaching the queue today. This mock simulates the card moving to "Added to queue"; the real build should deep-link to the actual queue entry it creates.</div></li>
+    <li><i>6</i><div><b>Concept only.</b> No real identity-resolution or page-view pipeline is wired in here — every card and the "+ Simulate a new visit" button are illustrative. Flag / Snooze / Dismiss only change local state in this mock; nothing is written back anywhere.</div></li>
+  </ol>
+  <div class="fn"><b>Open items for Thursday:</b> confirm the 24-hour dedupe window, the rep-routing fallback rule, and whether this earns its own left-nav spot (shown here under Buyer Accounts) or lives inside the Opportunity Queue as a tab. Reuses the same buyer score, chip, and panel styles as the Buyer Summary mock so both can ship together.</div>
+</section>
+
+<div class="toast" id="toast"><span class="ok2">✓</span><span id="toastTxt"></span></div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+
+  const buyers = [
+    {
+      id:'lisa', initials:'LE', name:'Lisa Ellis', title:'Director of Procurement', company:'Meridian Logistics',
+      score:72, scoreCls:'hot', scoreLabel:'Hot · Re-engaged',
+      recency:'12 min ago', recencyCls:'new',
+      rep:'Alejandro M.', repNote:'last worked Jun 2, 2026',
+      market:'Contract Management', quals:4, available:6, blocked:4, nextUnblock:'Dec 2',
+      status:'new'
+    },
+    {
+      id:'david', initials:'DO', name:'David Osei', title:'VP of IT', company:'Harrow Manufacturing',
+      score:58, scoreCls:'', scoreLabel:'Warm · Browsing',
+      recency:'1 hr ago', recencyCls:'new',
+      rep:'Priya S.', repNote:'last worked Aug 14, 2026',
+      market:'HR Software', quals:2, available:8, blocked:1, nextUnblock:'Nov 3',
+      status:'new'
+    },
+    {
+      id:'marcus', initials:'MW', name:'Marcus Webb', title:'IT Director', company:'Delacroix Health',
+      score:41, scoreCls:'cool', scoreLabel:'Cool · Re-engaged',
+      recency:'3 hr ago', recencyCls:'stale',
+      rep:'Devon R.', repNote:'last worked Jul 1, 2026',
+      market:'ITSM', quals:3, available:5, blocked:2, nextUnblock:'Jan 9',
+      status:'new'
+    },
+    {
+      id:'harold', initials:'HJ', name:'Harold Jennings', title:'Finance Manager', company:'OrbitPay',
+      score:65, scoreCls:'', scoreLabel:'Warm · Re-engaged',
+      recency:'Yesterday', recencyCls:'stale',
+      rep:'Chris M.', repNote:'last worked May 20, 2026',
+      market:'Expense Management', quals:1, available:9, blocked:0, nextUnblock:'—',
+      status:'done', doneAgo:'2 hr ago'
+    },
+    {
+      id:'grace', initials:'GL', name:'Grace Liu', title:'Head of People Ops', company:'Fennwick & Dale',
+      score:33, scoreCls:'cool', scoreLabel:'Cool · Browsing',
+      recency:'2 days ago', recencyCls:'stale',
+      rep:'Ryan P.', repNote:'last worked Feb 2, 2026',
+      market:'HR Software', quals:1, available:7, blocked:0, nextUnblock:'—',
+      status:'snoozed'
+    }
+  ];
+
+  function cardHtml(b){
+    const scoreCls = b.scoreCls ? ` ${b.scoreCls}` : '';
+    let statusPill = '';
+    let actions = '';
+    if(b.status === 'new'){
+      actions = `<button class="fbtn primary" data-act="flag" data-id="${b.id}">Flag as opportunity action</button>
+        <button class="fbtn ghost" data-act="snooze" data-id="${b.id}">Snooze</button>
+        <button class="fbtn ghost" data-act="dismiss" data-id="${b.id}">Dismiss</button>`;
+    } else if(b.status === 'done'){
+      statusPill = `<span class="statuspill chip ok">✓ Added to queue · ${b.doneAgo}</span>`;
+      actions = `<span class="statuspill">Routed to <b>${b.rep}</b></span>`;
+    } else if(b.status === 'snoozed'){
+      statusPill = `<span class="statuspill chip gray">Snoozed until tomorrow</span>`;
+      actions = `<button class="undo" data-act="unsnooze" data-id="${b.id}">Undo</button>`;
+    }
+    const cardCls = b.status === 'done' ? 'done' : (b.status === 'snoozed' ? 'snoozed' : '');
+    return `
+    <div class="fcard ${cardCls}" data-status="${b.status}" data-card="${b.id}">
+      <div class="fhead">
+        <div class="avatar">${b.initials}</div>
+        <div>
+          <div class="nm">${b.name} <span class="score${scoreCls}" title="Buyer score"><i>${b.score}</i>${b.scoreLabel}</span></div>
+          <div class="meta">${b.title} · ${b.company} · <b>${b.quals}</b> prior qualification${b.quals===1?'':'s'}</div>
+        </div>
+        <div class="frecency ${b.recencyCls}"><span class="rd"></span>Returned to site · ${b.recency}</div>
+      </div>
+      <div class="fbody">
+        <div class="fbox" data-note="${b.status==='new' && b.id==='lisa' ? '2' : ''}">
+          <h5>Known interest (from buyer profile)</h5>
+          <p>${b.market}</p>
+          <div class="sub">Not page-level — this signal only confirms they're back on the site, not what they viewed.</div>
+          <div class="prodrow">
+            <span class="chip ok">${b.available} available</span>
+            ${b.blocked ? `<span class="chip no">${b.blocked} blocked</span>` : ''}
+            ${b.nextUnblock !== '—' ? `<span class="chip gray">next unblocks ${b.nextUnblock}</span>` : ''}
+          </div>
+        </div>
+        <div class="fbox" data-note="${b.status==='new' && b.id==='lisa' ? '3' : ''}">
+          <h5>Routes to</h5>
+          <p><b>${b.rep}</b></p>
+          <div class="sub">${b.repNote} · same rep for continuity</div>
+        </div>
+      </div>
+      <div class="factions">
+        ${actions}
+        ${statusPill}
+      </div>
+    </div>`;
+  }
+
+  function renderStats(){
+    const active = buyers.length;
+    const news = buyers.filter(b=>b.status==='new').length;
+    const done = buyers.filter(b=>b.status==='done').length;
+    const snoozed = buyers.filter(b=>b.status==='snoozed').length;
+    $('sb-active').textContent = active;
+    $('sb-new').textContent = news;
+    $('sb-done').textContent = done;
+    $('sb-snoozed').textContent = snoozed;
+  }
+
+  let currentFilter = 'all';
+  function renderFeed(highlightId){
+    const list = buyers.filter(b => currentFilter === 'all' || b.status === currentFilter);
+    $('feed').innerHTML = list.map(cardHtml).join('') || '<div class="fcard" style="text-align:center;color:var(--fg-3)">No buyers match this filter.</div>';
+    if(highlightId){
+      const el = document.querySelector(`[data-card="${highlightId}"]`);
+      if(el) el.classList.add('enter');
+    }
+    renderStats();
+  }
+
+  function toast(msg){
+    $('toastTxt').textContent = msg;
+    $('toast').classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=> $('toast').classList.remove('show'), 2600);
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    const b = buyers.find(x => x.id === id);
+    if(!b) return;
+    if(btn.dataset.act === 'flag'){
+      b.status = 'done'; b.doneAgo = 'just now';
+      toast(`Added to Opportunity Queue — routed to ${b.rep}.`);
+      renderFeed(id);
+    } else if(btn.dataset.act === 'snooze'){
+      b.status = 'snoozed';
+      toast(`Snoozed ${b.name} until tomorrow.`);
+      renderFeed();
+    } else if(btn.dataset.act === 'dismiss'){
+      buyers.splice(buyers.indexOf(b), 1);
+      toast(`Dismissed ${b.name}.`);
+      renderFeed();
+    } else if(btn.dataset.act === 'unsnooze'){
+      b.status = 'new';
+      renderFeed(id);
+    }
+  });
+
+  document.querySelectorAll('.sfilter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sfilter').forEach(x => x.setAttribute('aria-pressed','false'));
+      btn.setAttribute('aria-pressed','true');
+      currentFilter = btn.dataset.filter;
+      renderFeed();
+    });
+  });
+
+  const simPool = [
+    {id:'sim'+Date.now(), initials:'RT', name:'Renata Torres', title:'Procurement Manager', company:'Caldwell & Shore', score:54, scoreCls:'', scoreLabel:'Warm · Browsing', recency:'just now', recencyCls:'new', rep:'Marcus T.', repNote:'last worked Mar 11, 2026', market:'Contract Management', quals:2, available:7, blocked:1, nextUnblock:'Feb 2', status:'new'},
+    {id:'sim'+(Date.now()+1), initials:'JB', name:'Jamal Burke', title:'Head of Procurement', company:'Northline Freight', score:47, scoreCls:'cool', scoreLabel:'Cool · Re-engaged', recency:'just now', recencyCls:'new', rep:'Alejandro M.', repNote:'last worked Jan 22, 2026', market:'Fleet Management', quals:1, available:6, blocked:0, nextUnblock:'—', status:'new'}
+  ];
+  let simIdx = 0;
+  $('simulate').addEventListener('click', () => {
+    const fresh = JSON.parse(JSON.stringify(simPool[simIdx % simPool.length]));
+    fresh.id = 'sim' + Date.now();
+    simIdx++;
+    buyers.unshift(fresh);
+    toast(`${fresh.name} just returned to the site — routed to ${fresh.rep}.`);
+    renderFeed(fresh.id);
+  });
+
+  $('notesToggle').addEventListener('change', e => { document.body.classList.toggle('notes-on', e.target.checked); $('notes').hidden = !e.target.checked; });
+
+  renderFeed();
+})();
+</script>
+</body>
+</html>
